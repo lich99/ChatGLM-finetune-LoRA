@@ -3,6 +3,16 @@
 
 This repository contains code for fintune [ChatGLM-6b](https://github.com/THUDM/ChatGLM-6B) using [low-rank adaptation (LoRA)](https://arxiv.org/pdf/2106.09685.pdf).
 
+### Stanford Alpaca's Dataset
+
+Here we use the [Stanford Alpaca](https://github.com/tatsu-lab/stanford_alpaca)'s Dataset as an example for fine-tuning.
+
+example line: 
+
+`{'prompt': 'Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.\n\n### Instruction:\nClassify the movie genres from the given context.\n\n### Input:\nThis movie tells the story of two brothers who were both born with magical powers.\n\n### Response:',
+ 'completion': 'Fantasy'}`
+
+
 ### LoRA
 ```python
 config = LoraConfig(
