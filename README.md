@@ -5,6 +5,9 @@ This repository contains code for fintune [ChatGLM-6b](https://github.com/THUDM/
 
 We also provide a [finetuned weight](https://github.com/lich99/ChatGLM-finetune-LoRA/blob/main/saved/chatglm-6b_alpaca_5.pt).
 
+
+- 2022/3/24: Support Multi-GPU training, DeepSpeed, Batch collate. Using accelerate to launch `train.py` 
+
 ### Stanford Alpaca's Dataset
 
 Here we use the [Stanford Alpaca](https://github.com/tatsu-lab/stanford_alpaca)'s Dataset as an example for fine-tuning. We also provide a [finetuned weight](https://github.com/lich99/ChatGLM-finetune-LoRA/blob/main/saved/chatglm-6b_alpaca_5.pt).
