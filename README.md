@@ -11,7 +11,7 @@ We also provide a [finetuned weight](https://github.com/lich99/ChatGLM-finetune-
 
 ### Easy to use
 
-```
+```python
 import loralib as lora
 import lora_utils.insert_lora
 import dataset.GLM as GLM_Data
