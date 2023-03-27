@@ -1,3 +1,4 @@
+import numpy as np
 import loralib as lora
 
 def get_lora_model(model, lora_config):
@@ -8,7 +9,6 @@ def get_lora_model(model, lora_config):
     #     'lora_dropout':0.1,
     #     'enable_lora':[True, True, True],
     # }
-
 
     for key, module in model.named_modules():
         if key.endswith('attention'):
@@ -26,5 +26,13 @@ def get_lora_model(model, lora_config):
 
 
     lora.mark_only_lora_as_trainable(model)
+
+    model_parameters = filter(lambda p: p.requires_grad, model.parameters())
+    trainable_params = sum([np.prod(p.size()) for p in model_parameters])
+
+    model_parameters = filter(lambda p: not p.requires_grad, model.parameters())
+    non_trainable_params = sum([np.prod(p.size()) for p in model_parameters])
+
+    print('trainable_params:{} ({:.2f}%), non_trainable_params:{}'.format(trainable_params, trainable_params/non_trainable_params*100,non_trainable_params))
 
     return model

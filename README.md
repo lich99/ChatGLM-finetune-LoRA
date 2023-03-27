@@ -9,6 +9,46 @@ We also provide a [finetuned weight](https://github.com/lich99/ChatGLM-finetune-
 - 2022/3/24: Support **Multi-GPU** training, **DeepSpeed**, Batch collate. Using accelerate to launch `train.py` 
 
 
+### Easy to use
+
+```
+import loralib as lora
+import lora_utils.insert_lora
+import dataset.GLM as GLM_Data
+from torch.utils.data import DataLoader
+from transformers import AutoTokenizer, AutoModel
+
+device = 'cuda'
+checkpoint = "THUDM/chatglm-6b"
+
+
+# load model
+tokenizer = AutoTokenizer.from_pretrained(checkpoint, trust_remote_code=True)
+model = AutoModel.from_pretrained(checkpoint, trust_remote_code=True)
+
+# get LoRA model
+lora_config = {
+        'r': 32,
+        'lora_alpha':32,
+        'lora_dropout':0.1,
+        'enable_lora':[True, True, True],
+    }
+model = lora_utils.insert_lora.get_lora_model(model, lora_config)
+### trainable_params:22020096 (0.35%), non_trainable_params:6255206400
+
+# get Dataloader
+pairs = [{'prompt':'Hello!', 'completion':'Hi! This is ChatGLM.'}]
+pairs_encoded = GLM_Data.encode_pairs(pairs, tokenizer)
+train_dataset = GLM_Data.GLMDataset(pairs_encoded)
+train_dataloader = DataLoader(dataset=train_dataset, collate_fn = GLM_Data.collate_fn, shuffle=True, batch_size=1)
+
+# training
+model.half().to(device)
+batch = {k: v.to(device) for k, v in next(iter(train_dataloader)).items()}
+outputs = model(**batch)
+outputs.loss.backward()
+```
+
 
 ### Stanford Alpaca's Dataset
 
