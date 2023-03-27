@@ -5,7 +5,7 @@ This repository contains code for fintune [ChatGLM-6b](https://github.com/THUDM/
 
 We also provide a [finetuned weight](https://github.com/lich99/ChatGLM-finetune-LoRA/blob/main/saved/chatglm-6b_alpaca_5.pt).
 
-
+- 2022/3/28: Optimized code structure, more simple and clear. Add training instruction.
 - 2022/3/24: Support **Multi-GPU** training, **DeepSpeed**, Batch collate. Using accelerate to launch `train.py` 
 
 
@@ -49,6 +49,25 @@ outputs = model(**batch)
 outputs.loss.backward()
 ```
 
+### Training
+
+Using [accelerate CLI tool](https://huggingface.co/docs/accelerate/basic_tutorials/launch) to launch multiprocess / distributed training:
+```
+accelerate launch --config_file config/default_config.yaml train_new.py
+```
+
+Likes OpenAI's fintune API, the data should be in following structure:  
+```python
+[
+    {'prompt': <enter the prompt here (can be instrcution)>, 'completion': <the expectation completion>},
+    {'prompt': <enter the prompt here (can be instrcution)>, 'completion': <the expectation completion>},
+    ...,
+    {'prompt': <enter the prompt here (can be instrcution)>, 'completion': <the expectation completion>},
+]
+```
+It is a **list** of **prompt-completion pairs**.
+
+
 
 ### Stanford Alpaca's Dataset
 
@@ -68,16 +87,14 @@ Note: vary with different dataset
 
 ### LoRA
 ```python
-config = LoraConfig(
-              peft_type="LORA", 
-              task_type="SEQ_2_SEQ_LM", 
-              r=8, 
-              lora_alpha=8, 
-              target_modules=["q", "v"],
-              lora_dropout=0.1, 
-              )
+lora_config = {
+        'r': 32,
+        'lora_alpha':32,
+        'lora_dropout':0.1,
+        'enable_lora':[True, True, True],
+    }
 ```
-Using above LoRA config, we have `trainable_params:3670016 (0.06%), non_trainable_params:6255206400`
+Using above LoRA config, we have `trainable_params:22020096 (0.35%), non_trainable_params:6255206400`
 
 ### Save & Load
 ```python
