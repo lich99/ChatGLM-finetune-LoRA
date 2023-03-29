@@ -5,6 +5,8 @@ This repository contains code for fintune [ChatGLM-6b](https://github.com/THUDM/
 
 We also provide a [finetuned weight](https://github.com/lich99/ChatGLM-finetune-LoRA/blob/main/saved/chatglm-6b_alpaca_5.pt).
 
+The minimum required GPU memory is **24G**, **RTX3090** is enough for training.
+
 - 2022/3/28: Optimized code structure, more simple and clear. Add training instruction.
 - 2022/3/24: Support **Multi-GPU** training, **DeepSpeed**, Batch collate. Using accelerate to launch `train.py` 
 
