@@ -79,7 +79,7 @@ def get_lora_model(model, lora_config):
               task_type="SEQ_2_SEQ_LM", 
               r=lora_config['r'], 
               lora_alpha=lora_config['lora_alpha'], 
-              target_modules=["q", "v"],
+              target_modules=target_modules,
               lora_dropout=lora_config['lora_dropout'])
 
 
