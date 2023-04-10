@@ -29,7 +29,7 @@ def collate_fn(batch, pad_to = 8, pad_token_id = 20003):
     attention_mask.tril_()
 
     for i, obj in enumerate(batch):
-        context_length = obj['prompt'].index(150004)
+        context_length = obj['prompt'].index(130004)
         attention_mask[i, :, :context_length] = 1
 
         to_pad = _max_length - len(obj['prompt']) - len(obj['completion'])
@@ -52,7 +52,7 @@ def collate_fn(batch, pad_to = 8, pad_token_id = 20003):
             'position_ids':torch.stack(position_ids)}
 
 
-def encode_pairs(pairs, tokenizer, eos_id = 150005):
+def encode_pairs(pairs, tokenizer, eos_id = 130005):
     prompt_ids = tokenizer.batch_encode_plus([pair['prompt'] for pair in pairs])['input_ids']
     completion_ids = tokenizer.batch_encode_plus([pair['completion'] for pair in pairs], add_special_tokens=False)['input_ids']
     pairs_encoded = [{'prompt':prompt_ids[i], 'completion':completion_ids[i] + [eos_id]} for i in range(len(pairs))]
