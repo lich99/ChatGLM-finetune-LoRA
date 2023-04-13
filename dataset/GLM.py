@@ -1,10 +1,16 @@
 import torch
+from transformers import AutoConfig
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 
-device = 'cuda'
+config = AutoConfig.from_pretrained("THUDM/chatglm-6b", trust_remote_code=True, revision = 'main')
 
-class GLMDataset(Dataset):
+pad_to = 1
+device = 'cuda'
+eos_id = config.eos_token_id
+pad_token_id = config.pad_token_id
+
+class SimpleDataset(Dataset):
     def __init__(self, pairs) -> None:
         super().__init__()
         self.pairs = pairs
@@ -16,7 +22,7 @@ class GLMDataset(Dataset):
         return len(self.pairs)
 
 
-def collate_fn(batch, pad_to = 8, pad_token_id = 20003):
+def collate_fn(batch):
     global device
     input_ids = []
     labels = []
@@ -52,8 +58,11 @@ def collate_fn(batch, pad_to = 8, pad_token_id = 20003):
             'position_ids':torch.stack(position_ids)}
 
 
-def encode_pairs(pairs, tokenizer, eos_id = 130005):
+def encode_pairs(pairs, tokenizer, with_eos = True):
     prompt_ids = tokenizer.batch_encode_plus([pair['prompt'] for pair in pairs])['input_ids']
     completion_ids = tokenizer.batch_encode_plus([pair['completion'] for pair in pairs], add_special_tokens=False)['input_ids']
-    pairs_encoded = [{'prompt':prompt_ids[i], 'completion':completion_ids[i] + [eos_id]} for i in range(len(pairs))]
+    if with_eos:
+        pairs_encoded = [{'prompt':prompt_ids[i], 'completion':completion_ids[i] + [eos_id]} for i in range(len(pairs))]
+    else:
+        pairs_encoded = [{'prompt':prompt_ids[i], 'completion':completion_ids[i]} for i in range(len(pairs))]
     return pairs_encoded

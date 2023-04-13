@@ -3,6 +3,7 @@ peft
 loralib
 accelerate
 transformers
+bitsandbytes
 deepspeed
 joblib
 numpy
