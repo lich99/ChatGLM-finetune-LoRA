@@ -7,6 +7,7 @@ We also provide a [finetuned weight](https://github.com/lich99/ChatGLM-finetune-
 
 The minimum required GPU memory is **24G**, **RTX3090** is enough for training.
 
+- 2022/4/12: Add tensorboard.
 - 2022/3/28: Optimized code structure, more simple and clear. Add training instruction.
 - 2022/3/24: Support **Multi-GPU** training, **DeepSpeed**, Batch collate. Using accelerate to launch `train.py` 
 
@@ -55,8 +56,15 @@ outputs.loss.backward()
 
 Using [accelerate CLI tool](https://huggingface.co/docs/accelerate/basic_tutorials/launch) to launch multiprocess / distributed training:
 ```
-accelerate launch --config_file config/default_config.yaml train_new.py
+accelerate launch --config_file config/default_config.yaml train.py
 ```
+Don't forget to change `num_processes` to the number of GPUs you want to use.
+
+Now `accelerate` supports ZeRO 2 (with offload), ZeRO 3 (with offload)
+
+Try ZeRO2 and no offload first, unless you encounter OOM.
+
+ZeRO 2 (no offload) > ZeRO 2 (offload) > ZeRO 3 (no offload) > ZeRO 3 (offload)
 
 Likes OpenAI's fintune API, the data should be in following structure:  
 ```python

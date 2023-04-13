@@ -1,229 +1,147 @@
 
-### Load Model From huggingface
-
 import os
+import time
 import tqdm
-import joblib
-import numpy as np
-import pandas as pd
-
-import torch
-from transformers import AutoTokenizer, AutoModel
-
-import peft
-import loralib as lora
-from peft import LoraConfig
-
 import json
-from torch.utils.data import DataLoader
-from torch.utils.data import Dataset
+import torch
+import numpy as np
+import loralib as lora
+from lora_utils.insert_lora import get_lora_model
 
+
+from torch.utils.data import DataLoader
+from transformers import AutoTokenizer, AutoModel
 from accelerate import Accelerator, DeepSpeedPlugin
 from transformers import get_linear_schedule_with_warmup
 
 
 
 checkpoint = "THUDM/chatglm-6b"
+
+model_id = "finetune_test"
+
 mixed_precision = 'bf16'
+lora_config = {
+    'r': 32,
+    'lora_alpha':32,
+    'lora_dropout':0.05,
+    'enable_lora':[True, False, True],
+}
 
+LR = 1e-4
+BATCH = 1
+MAX_LENGTH = 256
+NUM_EPOCHS = 3
 accumulate_step = 8
-MAX_LENGTH = 968
-
-config = LoraConfig(
-    peft_type="LORA", 
-    r=32, 
-    lora_alpha=32, 
-    target_modules=["q", "k", "v"],
-    lora_dropout=0.1, 
-)
-
-LR = 2e-5
-NUM_EPOCHS = 2
 warm_up_ratio = 0.1
 
 
 
-tokenizer = AutoTokenizer.from_pretrained(checkpoint, trust_remote_code=True)
-model = AutoModel.from_pretrained(checkpoint, trust_remote_code=True)
-
-deepspeed_plugin = DeepSpeedPlugin(zero_stage=2, gradient_accumulation_steps=accumulate_step)
-accelerator = Accelerator(mixed_precision=mixed_precision, gradient_accumulation_steps=accumulate_step, deepspeed_plugin=deepspeed_plugin)
+deepspeed_plugin = DeepSpeedPlugin(gradient_accumulation_steps=accumulate_step)
+accelerator = Accelerator(mixed_precision=mixed_precision, deepspeed_plugin=deepspeed_plugin, log_with="tensorboard", project_dir='runs/')
 device = accelerator.device
 
-### Insert LoRA to model
 
-class QKV_layer(torch.nn.Module):
-    def __init__(self, in_features, out_features):
-        super(QKV_layer, self).__init__()
-        self.linear_q = torch.nn.Linear(in_features, out_features//3)
-        self.linear_k = torch.nn.Linear(in_features, out_features//3)
-        self.linear_v = torch.nn.Linear(in_features, out_features//3)
+with accelerator.main_process_first():
+    retry_cnt = 10
+    cnt = 0
+    while cnt < retry_cnt:
+        try:
+            import dataset.GLM
+            tokenizer = AutoTokenizer.from_pretrained(checkpoint, trust_remote_code=True, revision = 'main')
+            model = AutoModel.from_pretrained(checkpoint, trust_remote_code=True, revision = 'main')
+            if mixed_precision == None:
+                model = model.float()
+            break
+        except:
+            cnt += 1 
 
-    def update(self, target_layer):
-        self.linear_q.weight.data = target_layer.weight[:target_layer.out_features//3, :].data
-        self.linear_q.bias.data = target_layer.bias[:target_layer.out_features//3].data
-
-        self.linear_k.weight.data = target_layer.weight[target_layer.out_features//3:target_layer.out_features//3*2, :].data
-        self.linear_k.bias.data = target_layer.bias[target_layer.out_features//3:target_layer.out_features//3*2].data
-
-        self.linear_v.weight.data = target_layer.weight[target_layer.out_features//3*2:, :].data
-        self.linear_v.bias.data = target_layer.bias[target_layer.out_features//3*2:].data
-    
-    def forward(self, x):
-        q = self.linear_q(x)
-        k = self.linear_k(x)
-        v = self.linear_v(x)
-        return torch.concat([q,k,v], dim = -1)
+    model = get_lora_model(model, lora_config)
 
 
-for key, module in model.named_modules():
-    if key.endswith('attention'):
-        if isinstance(module.query_key_value, peft.tuners.lora.LoraModel):
-            module.query_key_value = peft.tuners.lora.LoraModel(config, module.query_key_value.model)
-        else:
-            # Here we split the query_key_value layer into three linear layer for LoRA. But you can also use merged linear.
-            qkv_layer = QKV_layer(module.query_key_value.in_features, module.query_key_value.out_features) 
-            qkv_layer.update(module.query_key_value)
-            module.query_key_value = qkv_layer
-            module.query_key_value = peft.tuners.lora.LoraModel(config, module.query_key_value)
+accelerator.wait_for_everyone()
 
 
-lora.mark_only_lora_as_trainable(model)
-
-model_parameters = filter(lambda p: p.requires_grad, model.parameters())
-trainable_params = sum([np.prod(p.size()) for p in model_parameters])
-
-model_parameters = filter(lambda p: not p.requires_grad, model.parameters())
-non_trainable_params = sum([np.prod(p.size()) for p in model_parameters])
-
-print('trainable_params:{} ({:.2f}%), non_trainable_params:{}'.format(trainable_params, trainable_params/non_trainable_params*100,non_trainable_params))
+import dataset.Alpaca as Alpaca_Data
+dataset.GLM.device = device
 
 
-### Dataset
-
-EOS_ID = 150005
-
-PROMPT_DICT = {
-    "prompt_input": (
-        "Below is an instruction that describes a task, paired with an input that provides further context. "
-        "Write a response that appropriately completes the request.\n\n"
-        "### Instruction:\n{instruction}\n\n### Input:\n{input}\n\n### Response:"
-    ),
-    "prompt_no_input": (
-        "Below is an instruction that describes a task. "
-        "Write a response that appropriately completes the request.\n\n"
-        "### Instruction:\n{instruction}\n\n### Response:"
-    ),
-}
-
-with open('data/alpaca_data.json', 'r') as f:
-    content = json.load(f)
-
-
-pairs = []
-
-for line in content:
-    if line['input'] == '':
-        prompt = PROMPT_DICT['prompt_no_input'].format_map(line)
-    else:
-        prompt = PROMPT_DICT['prompt_input'].format_map(line)
-    completion = line['output']+'</s>'
-    if len(prompt) + len(completion) < MAX_LENGTH:
-        pairs.append({'prompt':prompt, 'completion':completion})
-
-
-class AlpacaDataset(Dataset):
-    def __init__(self, pairs, tokenizer) -> None:
-        super().__init__()
-        self.pairs = pairs
-        self.tokenizer = tokenizer
- 
-    def __getitem__(self, index):
-        if self.pairs[index]['completion'][-4:] == '</s>':
-            prompt = self.tokenizer.encode(self.pairs[index]['prompt'])
-            completion = self.tokenizer.encode(self.pairs[index]['completion'][:-4], add_special_tokens=False)
-            completion += [EOS_ID]
-        else:
-            prompt = self.tokenizer.encode(self.pairs[index]['prompt'])
-            completion = self.tokenizer.encode(self.pairs[index]['completion'], add_special_tokens=False)
-
-        return {'prompt':prompt, 'completion':completion}
-
-    def __len__(self):
-        return len(self.pairs)
+accelerator.print('Start to process data')
 
 
 
-def collate_fn(batch):
-    input_ids = []
-    labels = []
-    position_ids = []
-
-    _max_length = max([len(obj['prompt'])+len(obj['completion']) for obj in batch])
-    attention_mask = torch.ones((len(batch), _max_length, _max_length), device=device)
-    attention_mask.tril_()
-
-    for i, obj in enumerate(batch):
-        context_length = obj['prompt'].index(150004)
-        attention_mask[i, :, :context_length] = 1
-
-        to_pad = _max_length - len(obj['prompt']) - len(obj['completion'])
-
-        input_ids.append(obj['prompt'] + obj['completion'] + [tokenizer.pad_token_id] * to_pad)
-
-        position_ids.append(torch.stack([torch.arange(0, _max_length, device=device), 
-                                         torch.concat([torch.zeros(context_length - 1, device=device), 
-                                                       torch.arange(0, _max_length - context_length + 1, device=device)])]).long())
-
-        labels.append(torch.tensor([-100] * len(obj['prompt']) + 
-                                   obj['completion'] +
-                                   [-100] * to_pad, device=device).long())
-
-    
-    attention_mask.unsqueeze_(1)
-    attention_mask = (attention_mask < 0.5).bool()
-    return {'input_ids': torch.tensor(input_ids).long(), 
-            'attention_mask': attention_mask, 
-            'labels': torch.stack(labels),
-            'position_ids':torch.stack(position_ids)}
-
-            
-
-train_dataset = AlpacaDataset(pairs,tokenizer=tokenizer,)
-train_dataloader = DataLoader(dataset=train_dataset, collate_fn = collate_fn, shuffle=True, batch_size=1)
+with accelerator.main_process_first():
+    pairs = Alpaca_Data.load('./data/alpaca_data.json')
+    pairs_encoded = dataset.GLM.encode_pairs(pairs, tokenizer)
+    pairs_encoded = list(filter(lambda pair: len(pair['prompt'])+len(pair['completion']) <= MAX_LENGTH, pairs_encoded))
+train_dataset = dataset.GLM.SimpleDataset(pairs_encoded)
+train_dataloader = DataLoader(dataset=train_dataset, collate_fn = dataset.GLM.collate_fn, shuffle=True, batch_size=BATCH)
 
 
-### Training
+
+accelerator.wait_for_everyone()
+
 
 
 optimizer = torch.optim.AdamW(model.parameters(), lr=LR)
-
 lr_scheduler = get_linear_schedule_with_warmup(
     optimizer=optimizer,
     num_warmup_steps=int(len(train_dataloader) / accumulate_step * warm_up_ratio),
-    num_training_steps=(int(len(train_dataloader) / accumulate_step) * NUM_EPOCHS),
+    num_training_steps=(len(train_dataloader) // accumulate_step * NUM_EPOCHS),
 )
+model, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(model, optimizer, train_dataloader, lr_scheduler)
 
-model, optimizer, train_dataloader = accelerator.prepare(model, optimizer, train_dataloader)
-model.to(device).train()
 
+
+
+accelerator.init_trackers(model_id, {})
+
+total_effective_step = 0
 
 for epoch in range(NUM_EPOCHS):
-    total_loss = 0
+
+    batch_loss = 0
+    effective_step = 0
+    
     for step, batch in enumerate(t:=tqdm.tqdm(train_dataloader)):
-        with accelerator.accumulate(model):
-            outputs = model(**batch)
-            loss_detach = outputs.loss.detach().cpu().float()
-            t.set_description(f"loss: {loss_detach}")
-            total_loss += loss_detach
-            loss = outputs.loss
-            accelerator.backward(loss)
+
+        outputs = model(**batch)
+
+        loss_d = outputs.loss.detach().cpu().float().item()
+        batch_loss += loss_d
+
+        loss = outputs.loss / accumulate_step
+        accelerator.backward(loss)
+
+        if (step+1) % accumulate_step == 0:
             optimizer.step()
             lr_scheduler.step()
             optimizer.zero_grad()
 
-    accelerator.wait_for_everyone()
-    if accelerator.is_main_process:
-        peft_model_id = f"finetune_{epoch}"
-        accelerator.save(lora.lora_state_dict(accelerator.unwrap_model(model)), '/saved/'+peft_model_id+'.pt')
+            effective_step += 1
+
+            gathered_batch_loss = accelerator.gather((torch.tensor(batch_loss, device=device)))
+
+            if accelerator.is_main_process:
+                accelerator.log(
+                    {
+                        "train_loss": gathered_batch_loss.mean().item() / accumulate_step,
+                        "epoch": epoch,
+                    },
+                    step = total_effective_step + effective_step,
+                )
+
+            t.set_description(f"loss: {gathered_batch_loss.mean().item() / accumulate_step}")
+            batch_loss = 0   
+        
     
+    accelerator.wait_for_everyone()
+    
+    total_effective_step += effective_step
+    
+    if accelerator.is_main_process:
+        os.makedirs(f'saved/{model_id}', exist_ok = True)
+        accelerator.save(lora.lora_state_dict(accelerator.unwrap_model(model)), f'saved/{model_id}/{model_id}_epoch_{epoch}.pt')
+
+    accelerator.wait_for_everyone()
+
