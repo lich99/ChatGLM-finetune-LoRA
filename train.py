@@ -61,6 +61,9 @@ with accelerator.main_process_first():
 
 accelerator.wait_for_everyone()
 
+model.use_cache = False
+model.gradient_checkpointing = False
+
 
 import dataset.Alpaca as Alpaca_Data
 dataset.GLM.device = device
