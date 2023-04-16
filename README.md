@@ -1,9 +1,9 @@
 # ChatGLM-finetune-LoRA
 
 
-This repository contains code for fintune [ChatGLM-6b](https://github.com/THUDM/ChatGLM-6B) using [low-rank adaptation (LoRA)](https://arxiv.org/pdf/2106.09685.pdf).
+This repository contains code for finetuning [ChatGLM-6b](https://github.com/THUDM/ChatGLM-6B) using [low-rank adaptation (LoRA)](https://arxiv.org/pdf/2106.09685.pdf).
 
-We also provide a [finetuned weight](https://github.com/lich99/ChatGLM-finetune-LoRA/blob/main/saved/chatglm-6b_alpaca_5.pt).
+We also provide [finetuned weights](https://github.com/lich99/ChatGLM-finetune-LoRA/blob/main/saved/chatglm-6b_alpaca_5.pt).
 
 The minimum required GPU memory is **24G**, **RTX3090** is enough for training.
 
@@ -77,13 +77,13 @@ Now `accelerate` supports **ZeRO 2** (with offload), **ZeRO 3** (with offload)
 
 ZeRO 2 (no offload) > ZeRO 2 (offload) > ZeRO 3 (no offload) > ZeRO 3 (offload)
 
-Likes OpenAI's fintune API, the data should be in following structure:  
+Like OpenAI's finetune API, the data should be in following structure:  
 ```python
 [
-    {'prompt': <enter the prompt here (can be instrcution)>, 'completion': <the expectation completion>},
-    {'prompt': <enter the prompt here (can be instrcution)>, 'completion': <the expectation completion>},
+    {'prompt': <enter the prompt here (can be instruction)>, 'completion': <the expectation completion>},
+    {'prompt': <enter the prompt here (can be instruction)>, 'completion': <the expectation completion>},
     ...,
-    {'prompt': <enter the prompt here (can be instrcution)>, 'completion': <the expectation completion>},
+    {'prompt': <enter the prompt here (can be instruction)>, 'completion': <the expectation completion>},
 ]
 ```
 It is a **list** of **prompt-completion pairs**.
@@ -92,7 +92,7 @@ It is a **list** of **prompt-completion pairs**.
 
 ### Stanford Alpaca's Dataset
 
-Here we use the [Stanford Alpaca](https://github.com/tatsu-lab/stanford_alpaca)'s Dataset as an example for fine-tuning. We also provide a [finetuned weight](https://github.com/lich99/ChatGLM-finetune-LoRA/blob/main/saved/chatglm-6b_alpaca_5.pt).
+Here we use the [Stanford Alpaca](https://github.com/tatsu-lab/stanford_alpaca)'s Dataset as an example for fine-tuning. We also provide [finetuned weights](https://github.com/lich99/ChatGLM-finetune-LoRA/blob/main/saved/chatglm-6b_alpaca_5.pt).
 
 example line: 
 
@@ -104,7 +104,7 @@ Training for Stanford Alpaca's Dataset should within **30min** per epoch on **4*
 
 You may observe a typical training loss curve: 
 ![example_training_loss](https://github.com/lich99/ChatGLM-finetune-LoRA/blob/main/fig/example_loss.png)
-Note: vary with different dataset
+Note: varies with different datasets
 
 ### LoRA
 ```python
