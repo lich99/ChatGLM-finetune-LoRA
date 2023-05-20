@@ -1,5 +1,6 @@
 # ChatGLM-finetune-LoRA
 
+<img src=fig/IMG_20230520_180135.png width=35% />
 
 This repository contains code for finetuning [ChatGLM-6b](https://github.com/THUDM/ChatGLM-6B) using [low-rank adaptation (LoRA)](https://arxiv.org/pdf/2106.09685.pdf).
 
