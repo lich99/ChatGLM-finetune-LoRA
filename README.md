@@ -1,6 +1,9 @@
 # ChatGLM-finetune-LoRA
 
 <img src=fig/qrcode.jpeg width=25% />
+PS: 我们同时在做TTS模型, 期待与对这方面感兴趣的人士交流, 下面为我们早期模型的结果.
+
+[yingjiang.webm](https://github.com/lich99/ChatGLM-finetune-LoRA/assets/32587096/ecfa156f-9d7c-435c-a844-238f86bbab28)
 
 This repository contains code for finetuning [ChatGLM-6b](https://github.com/THUDM/ChatGLM-6B) using [low-rank adaptation (LoRA)](https://arxiv.org/pdf/2106.09685.pdf).
 
